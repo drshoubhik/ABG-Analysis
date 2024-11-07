@@ -1,0 +1,1 @@
+My first code share. i have seen many programs on ABG analysis but being a doctor I didn't find any which was what I wanted. This is close to what I wanted. As a beginner I know the code can be improved. Community help needed. So putting it out there.
