@@ -40,11 +40,11 @@ It works through the analysis step by step:
 
 ## Android app
 
-Every push to `main` that touches the app or the logic builds an installable APK with GitHub Actions. To get it:
+Every push to `main` that touches the app or the logic builds an installable APK with GitHub Actions and publishes it to the **[apk-latest release](https://github.com/drshoubhik/ABG-Analysis/releases/tag/apk-latest)**. To install:
 
-1. Open the **Actions** tab, then the latest **Build Android APK** run.
-2. Download **abg-analyser-apk** at the bottom of the run, unzip it, and copy the `.apk` to your phone.
-3. Open it on the phone and allow installing from this source when asked.
+1. Open that link on your Android phone.
+2. Tap **ABG-Analyser.apk** to download it.
+3. Open the download and allow installing from this source when asked. Later builds install over the top as updates.
 
 The build first runs `tests/check_app_matches_cli.py` and stops if the app and the command-line program disagree on any case. If you change the clinical logic, change it in both `abg_analysis.py` and `app/abg_core.py`.
 

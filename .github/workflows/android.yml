@@ -12,6 +12,9 @@ on:
       - ".github/workflows/android.yml"
   workflow_dispatch:
 
+permissions:
+  contents: write        # needed to publish the APK as a release
+
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -121,3 +124,17 @@ jobs:
           name: abg-analyser-apk
           path: app/bin/*.apk
           if-no-files-found: error
+
+      # Publish to a fixed release so the phone can install from one link:
+      # https://github.com/drshoubhik/ABG-Analysis/releases/tag/apk-latest
+      - name: Publish APK to the apk-latest release
+        if: success() && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APK=$(ls app/bin/*.apk | head -1)
+          cp "$APK" ABG-Analyser.apk
+          NOTES="Built from ${GITHUB_SHA::7} on $(date -u '+%Y-%m-%d %H:%M UTC'). Open this page on your phone, tap ABG-Analyser.apk, and allow installing from this source when asked."
+          gh release delete apk-latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create apk-latest ABG-Analyser.apk \
+            --title "ABG Analyser (latest build)" --notes "$NOTES" --latest
