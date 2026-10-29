@@ -13,18 +13,18 @@ python abg_analysis.py
 The program asks for:
 - **pH, pCO₂ and HCO₃**
 - **pO₂ and FiO₂** (optional)
-- **Na, Cl and albumin** (optional; asked for later if a metabolic acidosis needs classifying)
+- **Na, Cl and albumin** (asked for only if there is a metabolic acidosis to classify; albumin optional)
 - **Age** (optional; used for the A–a gradient)
 
 It works through the analysis step by step:
 
 1. **pH:** acidemia, alkalemia or normal.
-2. **Primary disorder:** worked out from the pH. You're only asked when both processes could explain it.
+2. **Primary disorder:** the program is history-led. Whenever the gas can't decide by itself (a normal pH, or both pCO₂ and HCO₃ moving in the pH's direction), you're asked whether the clinical picture points to a respiratory or a metabolic primary, and the calculations start from your answer. When only one process explains the pH, the pH decides.
 3. **Compensation:** the expected value is compared with the measured one, to show either appropriate compensation or a concurrent disorder.
    - Respiratory: acute/chronic HCO₃ rules (1, 3.5, 2 and 5 per 10 mmHg)
    - Metabolic acidosis: Winter's formula
    - Metabolic alkalosis: 40 + 0.7 × (HCO₃ − 24)
-4. **Anion gap:** albumin-corrected, with the delta ratio.
+4. **Anion gap:** for metabolic acidosis only (HAGMA vs NAGMA), albumin-corrected. If the gap is raised, the corrected HCO₃ (HCO₃ + AG excess) flags a possible second metabolic process: above 28 suggests a concurrent metabolic alkalosis, below 20 a concurrent non-gap acidosis.
 5. **Oxygenation:** hypoxemia grade, P/F ratio and A–a gradient.
 6. **Causes:** an optional walk-through of possible causes.
 
@@ -39,11 +39,12 @@ It works through the analysis step by step:
 ## Changes in v2.0
 
 - **Metabolic alkalosis compensation:** now uses 40 + 0.7 × (HCO₃ − 24). Winter's formula applies only to metabolic acidosis.
-- **Normal ranges:** now pH 7.35–7.45, pCO₂ 35–45 and HCO₃ 22–26. Previously any HCO₃ other than exactly 24 counted as abnormal.
-- **Primary disorder:** now worked out from the pH instead of always being asked.
-- **Anion gap:** checked whenever Na/Cl are given, so a hidden AG acidosis isn't missed. It's corrected for albumin and comes with the delta ratio.
+- **Thresholds:** pH normal range 7.35–7.45. pCO₂ and HCO₃ are judged against the midpoint as in v1 (pCO₂ 40 ± 2, HCO₃ 24), so even with a normal pH a low HCO₃ is treated as a metabolic acidosis and classified with the anion gap. This is what finds a high-AG acidosis masked by a metabolic alkalosis.
+- **Primary disorder:** taken from the clinical history whenever the gas is ambiguous; worked out from the pH only when one process alone explains it.
+- **Anion gap:** Na, Cl and albumin are asked for only when a metabolic acidosis needs classifying as HAGMA or NAGMA. The gap is corrected for albumin.
+- **Delta ratio replaced by corrected HCO₃:** the ratio divides two small, noisy differences and becomes unstable when HCO₃ is near 24. Corrected HCO₃ carries the same information as a simple flag with a wide grey zone (20–28), reported as a suggestion rather than a diagnosis.
 - **A–a gradient:** added, with an age-adjusted normal.
 - **Hypoxemia grades:** now mild 60–79, moderate 40–59 and severe below 40. The P/F ratio is reported against Berlin ARDS thresholds.
-- **Henderson–Hasselbalch check:** a mismatch now gives a warning instead of forcing you to re-enter the values.
+- **Henderson–Hasselbalch check:** a mismatch (HCO₃ more than 6% off the value expected from pH and pCO₂) stops the analysis; the values must be re-entered. An inconsistent gas is never interpreted.
 
 *Decision support only. Always interpret the results alongside the clinical picture.*
