@@ -73,8 +73,12 @@ jobs:
       - name: Build APK
         working-directory: app
         run: |
-          set -o pipefail
+          # "yes" answers the SDK licence prompts; it is killed by SIGPIPE when buildozer
+          # exits, so take buildozer's own exit status (pipeline element 2), not pipefail.
+          set +e
           yes | buildozer -v android debug 2>&1 | tee build.log
+          status=${PIPESTATUS[1]}
+          exit $status
 
       - name: Save SDK/NDK cache
         if: always()
