@@ -43,24 +43,20 @@ jobs:
           pip install --upgrade pip
           pip install buildozer==1.5.0 cython==0.29.37
 
-      # Two caches: the Android SDK/NDK/Ant (~/.buildozer) are shared across spec changes;
-      # the per-app build (app/.buildozer: p4a checkout, compiled recipes) resets when
-      # buildozer.spec changes. Both are saved even when a build fails.
-      - name: Restore SDK/NDK cache
+      # One cache for everything Buildozer keeps: the Android SDK/NDK/Ant (~/.buildozer),
+      # the signing key (~/.android) and the per-app build (app/.buildozer). They must be
+      # restored together: app/.buildozer records which SDK packages are installed, so
+      # restoring it without the matching SDK makes Buildozer skip needed installs.
+      # Saved even when a build fails; a change to buildozer.spec starts fresh.
+      - name: Restore build cache
         uses: actions/cache/restore@v4
         with:
           path: |
             ~/.buildozer
             ~/.android
-          key: sdk-${{ runner.os }}-${{ github.run_id }}
-          restore-keys: sdk-${{ runner.os }}-
-
-      - name: Restore app build cache
-        uses: actions/cache/restore@v4
-        with:
-          path: app/.buildozer
-          key: appbuild-${{ runner.os }}-${{ hashFiles('app/buildozer.spec') }}-${{ github.run_id }}
-          restore-keys: appbuild-${{ runner.os }}-${{ hashFiles('app/buildozer.spec') }}-
+            app/.buildozer
+          key: build-${{ runner.os }}-${{ hashFiles('app/buildozer.spec') }}-${{ github.run_id }}
+          restore-keys: build-${{ runner.os }}-${{ hashFiles('app/buildozer.spec') }}-
 
       # Android only installs an update signed with the same key as the installed app.
       # Use the fixed key from the ANDROID_DEBUG_KEYSTORE repo secret if present;
@@ -107,21 +103,15 @@ jobs:
           status=${PIPESTATUS[1]}
           exit $status
 
-      - name: Save SDK/NDK cache
+      - name: Save build cache
         if: always()
         uses: actions/cache/save@v4
         with:
           path: |
             ~/.buildozer
             ~/.android
-          key: sdk-${{ runner.os }}-${{ github.run_id }}
-
-      - name: Save app build cache
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: app/.buildozer
-          key: appbuild-${{ runner.os }}-${{ hashFiles('app/buildozer.spec') }}-${{ github.run_id }}
+            app/.buildozer
+          key: build-${{ runner.os }}-${{ hashFiles('app/buildozer.spec') }}-${{ github.run_id }}
 
       # On failure, surface the end of the build log as annotations (readable via the API).
       # GitHub truncates each annotation at ~4 KB, so the text is split into chunks.
