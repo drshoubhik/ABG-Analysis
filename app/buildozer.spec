@@ -26,6 +26,10 @@ android.ndk = 25b
 p4a.branch = v2024.01.21
 android.permissions =
 
+# Release builds are signed with our own key (see the CI workflow); output an APK
+# that installs directly, not the Play Store .aab bundle Buildozer defaults to.
+android.release_artifact = apk
+
 # icon.filename = %(source.dir)s/icon.png
 
 [buildozer]

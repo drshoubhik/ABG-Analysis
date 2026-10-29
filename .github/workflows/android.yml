@@ -61,12 +61,13 @@ jobs:
       # Android only installs an update signed with the same key as the installed app.
       # Use the fixed key from the ANDROID_DEBUG_KEYSTORE repo secret if present;
       # otherwise reuse the cached key, or create one (then cached for later runs).
+      # (Debug builds ignore this file, so the APK is built in release mode below.)
       - name: Set up signing key
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_DEBUG_KEYSTORE }}
         run: |
           mkdir -p ~/.android
-          KS=~/.android/debug.keystore
+          KS=~/.android/abg.keystore
           if [ -n "$KEYSTORE_B64" ]; then
             echo "$KEYSTORE_B64" | base64 -d > "$KS"; SRC="repo secret"
           elif [ -f "$KS" ]; then
@@ -95,13 +96,32 @@ jobs:
 
       - name: Build APK
         working-directory: app
+        env:
+          # python-for-android signs release builds with exactly this key
+          P4A_RELEASE_KEYSTORE: /home/runner/.android/abg.keystore
+          P4A_RELEASE_KEYSTORE_PASSWD: android
+          P4A_RELEASE_KEYALIAS: androiddebugkey
+          P4A_RELEASE_KEYALIAS_PASSWD: android
         run: |
           # "yes" answers the SDK licence prompts; it is killed by SIGPIPE when buildozer
           # exits, so take buildozer's own exit status (pipeline element 2), not pipefail.
           set +e
-          yes | buildozer -v android debug 2>&1 | tee build.log
+          yes | buildozer -v android release 2>&1 | tee build.log
           status=${PIPESTATUS[1]}
           exit $status
+
+      # Fail the run if the APK isn't signed with the key above (updates would be refused)
+      - name: Verify APK signature
+        run: |
+          APK=$(ls app/bin/*.apk | head -1)
+          SIGNER="$(ls -d ~/.buildozer/android/platform/android-sdk/build-tools/*/ | sort -V | tail -1)apksigner"
+          APK_FP=$("$SIGNER" verify --print-certs "$APK" | grep -m1 "SHA-256 digest" | awk '{print $NF}')
+          KEY_FP=$(keytool -list -v -keystore ~/.android/abg.keystore -storepass android | grep -m1 "SHA256:" | awk '{print $2}' | tr -d ':' | tr 'A-F' 'a-f')
+          echo "APK: $APK_FP"; echo "key: $KEY_FP"
+          if [ -z "$APK_FP" ] || [ "$APK_FP" != "$KEY_FP" ]; then
+            echo "::error title=APK signature::APK signed with ${APK_FP:-nothing}, expected ${KEY_FP}"; exit 1
+          fi
+          echo "::notice title=APK signature::matches the signing key (${KEY_FP})"
 
       - name: Save build cache
         if: always()
