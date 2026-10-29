@@ -46,6 +46,8 @@ Every push to `main` that touches the app or the logic builds an installable APK
 2. Tap **ABG-Analyser.apk** to download it.
 3. Open the download and allow installing from this source when asked. Later builds install over the top as updates.
 
+Android only accepts an update signed with the same key as the installed app. The build signs with the key in the `ANDROID_DEBUG_KEYSTORE` repository secret (Settings → Secrets and variables → Actions), so every build installs as an update. Without that secret it falls back to a key kept in the build cache, which GitHub clears after 7 days without a build; you'd then need to uninstall once before installing.
+
 The build first runs `tests/check_app_matches_cli.py` and stops if the app and the command-line program disagree on any case. If you change the clinical logic, change it in both `abg_analysis.py` and `app/abg_core.py`.
 
 To try the app on a desktop: `pip install kivy`, then `python app/main.py`.

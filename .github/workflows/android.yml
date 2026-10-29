@@ -49,7 +49,9 @@ jobs:
       - name: Restore SDK/NDK cache
         uses: actions/cache/restore@v4
         with:
-          path: ~/.buildozer
+          path: |
+            ~/.buildozer
+            ~/.android
           key: sdk-${{ runner.os }}-${{ github.run_id }}
           restore-keys: sdk-${{ runner.os }}-
 
@@ -59,6 +61,28 @@ jobs:
           path: app/.buildozer
           key: appbuild-${{ runner.os }}-${{ hashFiles('app/buildozer.spec') }}-${{ github.run_id }}
           restore-keys: appbuild-${{ runner.os }}-${{ hashFiles('app/buildozer.spec') }}-
+
+      # Android only installs an update signed with the same key as the installed app.
+      # Use the fixed key from the ANDROID_DEBUG_KEYSTORE repo secret if present;
+      # otherwise reuse the cached key, or create one (then cached for later runs).
+      - name: Set up signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_DEBUG_KEYSTORE }}
+        run: |
+          mkdir -p ~/.android
+          KS=~/.android/debug.keystore
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$KS"; SRC="repo secret"
+          elif [ -f "$KS" ]; then
+            SRC="cache"
+          else
+            keytool -genkeypair -keystore "$KS" -storepass android -keypass android \
+              -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+            SRC="newly generated"
+          fi
+          FP=$(keytool -list -v -keystore "$KS" -storepass android | grep -m1 "SHA256:" | awk '{print $2}')
+          echo "::notice title=Signing key::${SRC}, SHA-256 ${FP}"
 
       # Buildozer fetches Apache Ant from archive.apache.org without retries, which
       # flakes on GitHub runners. Pre-fetch it with retries over IPv4.
@@ -87,7 +111,9 @@ jobs:
         if: always()
         uses: actions/cache/save@v4
         with:
-          path: ~/.buildozer
+          path: |
+            ~/.buildozer
+            ~/.android
           key: sdk-${{ runner.os }}-${{ github.run_id }}
 
       - name: Save app build cache
