@@ -40,18 +40,35 @@ jobs:
           pip install --upgrade pip
           pip install buildozer==1.5.0 cython==0.29.37
 
-      # Android SDK/NDK and compiled recipes are large; cache them between runs.
-      # Saved even when the build fails, so a retry doesn't re-download everything.
-      - name: Restore Buildozer cache
+      # Two caches: the Android SDK/NDK/Ant (~/.buildozer) are shared across spec changes;
+      # the per-app build (app/.buildozer: p4a checkout, compiled recipes) resets when
+      # buildozer.spec changes. Both are saved even when a build fails.
+      - name: Restore SDK/NDK cache
         uses: actions/cache/restore@v4
         with:
-          path: |
-            ~/.buildozer
-            app/.buildozer
-          key: buildozer-${{ runner.os }}-${{ hashFiles('app/buildozer.spec') }}-${{ github.run_id }}
-          restore-keys: |
-            buildozer-${{ runner.os }}-${{ hashFiles('app/buildozer.spec') }}-
-            buildozer-${{ runner.os }}-
+          path: ~/.buildozer
+          key: sdk-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: sdk-${{ runner.os }}-
+
+      - name: Restore app build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: app/.buildozer
+          key: appbuild-${{ runner.os }}-${{ hashFiles('app/buildozer.spec') }}-${{ github.run_id }}
+          restore-keys: appbuild-${{ runner.os }}-${{ hashFiles('app/buildozer.spec') }}-
+
+      # Buildozer fetches Apache Ant from archive.apache.org without retries, which
+      # flakes on GitHub runners. Pre-fetch it with retries over IPv4.
+      - name: Pre-fetch Apache Ant
+        run: |
+          ANT=~/.buildozer/android/platform/apache-ant-1.9.4
+          if [ ! -d "$ANT" ]; then
+            mkdir -p ~/.buildozer/android/platform
+            curl -4 -fsSL --retry 6 --retry-all-errors --retry-delay 10 \
+              -o /tmp/ant.tgz https://archive.apache.org/dist/ant/binaries/apache-ant-1.9.4-bin.tar.gz
+            tar -xzf /tmp/ant.tgz -C ~/.buildozer/android/platform
+          fi
+          ls "$ANT/bin/ant"
 
       - name: Build APK
         working-directory: app
@@ -59,14 +76,19 @@ jobs:
           set -o pipefail
           yes | buildozer -v android debug 2>&1 | tee build.log
 
-      - name: Save Buildozer cache
+      - name: Save SDK/NDK cache
         if: always()
         uses: actions/cache/save@v4
         with:
-          path: |
-            ~/.buildozer
-            app/.buildozer
-          key: buildozer-${{ runner.os }}-${{ hashFiles('app/buildozer.spec') }}-${{ github.run_id }}
+          path: ~/.buildozer
+          key: sdk-${{ runner.os }}-${{ github.run_id }}
+
+      - name: Save app build cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: app/.buildozer
+          key: appbuild-${{ runner.os }}-${{ hashFiles('app/buildozer.spec') }}-${{ github.run_id }}
 
       # On failure, surface the end of the build log as annotations (readable via the API).
       # GitHub truncates each annotation at ~4 KB, so the text is split into chunks.
