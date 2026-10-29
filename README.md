@@ -35,6 +35,20 @@ It works through the analysis step by step:
 | `abg_analysis.py` | **Current version (v2.0).** Rewritten with classes, with clinical fixes (see below) |
 | `ABG Analysis.py` | Original v1 script (2024), kept for reference |
 | `ABG Analysis.exe` / `.zip` | Windows build of the v1 script |
+| `app/` | Android app (Kivy): `main.py` is the screen, `abg_core.py` the same clinical logic without terminal prompts |
+| `tests/check_app_matches_cli.py` | Checks the app gives exactly the same results as `abg_analysis.py` (~7,000 ABGs) |
+
+## Android app
+
+Every push to `main` that touches the app or the logic builds an installable APK with GitHub Actions. To get it:
+
+1. Open the **Actions** tab, then the latest **Build Android APK** run.
+2. Download **abg-analyser-apk** at the bottom of the run, unzip it, and copy the `.apk` to your phone.
+3. Open it on the phone and allow installing from this source when asked.
+
+The build first runs `tests/check_app_matches_cli.py` and stops if the app and the command-line program disagree on any case. If you change the clinical logic, change it in both `abg_analysis.py` and `app/abg_core.py`.
+
+To try the app on a desktop: `pip install kivy`, then `python app/main.py`.
 
 ## Changes in v2.0
 

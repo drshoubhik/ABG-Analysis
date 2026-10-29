@@ -1,0 +1,61 @@
+name: Build Android APK
+
+# Builds app/ into an installable debug APK on every relevant push, or on demand
+# from the Actions tab ("Run workflow"). The APK is attached to the run as an artifact.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "abg_analysis.py"
+      - "tests/**"
+      - ".github/workflows/android.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Stop before building if the app's logic has drifted from the command-line program
+      - name: Check app matches command-line program
+        run: python tests/check_app_matches_cli.py
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git zip unzip autoconf automake libtool pkg-config \
+            zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
+          pip install --upgrade pip
+          pip install buildozer==1.5.0 cython==0.29.37
+
+      # Android SDK/NDK and compiled recipes are large; cache them between runs
+      - name: Cache Buildozer
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.buildozer
+            app/.buildozer
+          key: buildozer-${{ runner.os }}-${{ hashFiles('app/buildozer.spec') }}
+
+      - name: Build APK
+        working-directory: app
+        run: yes | buildozer -v android debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: abg-analyser-apk
+          path: app/bin/*.apk
+          if-no-files-found: error
