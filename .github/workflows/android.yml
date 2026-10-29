@@ -40,14 +40,18 @@ jobs:
           pip install --upgrade pip
           pip install buildozer==1.5.0 cython==0.29.37
 
-      # Android SDK/NDK and compiled recipes are large; cache them between runs
-      - name: Cache Buildozer
-        uses: actions/cache@v4
+      # Android SDK/NDK and compiled recipes are large; cache them between runs.
+      # Saved even when the build fails, so a retry doesn't re-download everything.
+      - name: Restore Buildozer cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             ~/.buildozer
             app/.buildozer
-          key: buildozer-${{ runner.os }}-${{ hashFiles('app/buildozer.spec') }}
+          key: buildozer-${{ runner.os }}-${{ hashFiles('app/buildozer.spec') }}-${{ github.run_id }}
+          restore-keys: |
+            buildozer-${{ runner.os }}-${{ hashFiles('app/buildozer.spec') }}-
+            buildozer-${{ runner.os }}-
 
       - name: Build APK
         working-directory: app
@@ -55,16 +59,35 @@ jobs:
           set -o pipefail
           yes | buildozer -v android debug 2>&1 | tee build.log
 
-      # On failure, surface the end of the build log as an annotation (readable via the API)
+      - name: Save Buildozer cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.buildozer
+            app/.buildozer
+          key: buildozer-${{ runner.os }}-${{ hashFiles('app/buildozer.spec') }}-${{ github.run_id }}
+
+      # On failure, surface the end of the build log as annotations (readable via the API).
+      # GitHub truncates each annotation at ~4 KB, so the text is split into chunks.
       - name: Report build errors
         if: failure()
         working-directory: app
         run: |
           [ -f build.log ] || exit 0
-          { grep -n -i -E "error|exception|failed|not found|No such" build.log | grep -v -i -E "werror|-Wno-error|strerror" | tail -40
-            echo "----- last 80 lines -----"; tail -80 build.log; } > summary.txt
-          msg=$(sed -e 's/%/%25/g' summary.txt | sed -e ':a;N;$!ba;s/\r//g;s/\n/%0A/g')
-          echo "::error title=Buildozer failure::${msg}"
+          python3 - <<'PY'
+          import re
+          log = re.sub(r"\x1b\[[0-9;]*m", "", open("build.log", errors="replace").read())
+          lines = [l.rstrip() for l in log.splitlines()]
+          noise = re.compile(r"performance hint|noexcept|Declare '|Use an 'int' return|-Werror|-Wno-error|strerror", re.I)
+          errs = [l for l in lines if re.search(r"error|exception|failed|not found|no such|traceback", l, re.I)
+                  and not noise.search(l)]
+          text = "\n".join(["== error-like lines (last 30) =="] + errs[-30:] + ["== last 60 lines =="] + lines[-60:])
+          chunks = [text[i:i + 3500] for i in range(0, len(text), 3500)][-9:]
+          for n, c in enumerate(chunks, 1):
+              c = c.replace("%", "%25").replace("\r", "").replace("\n", "%0A")
+              print(f"::error title=Buildozer failure {n}/{len(chunks)}::{c}")
+          PY
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
